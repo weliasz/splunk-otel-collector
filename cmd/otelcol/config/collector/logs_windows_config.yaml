@@ -40,10 +40,11 @@ receivers:
   # --- Disabled in inputs.conf -------------------------------------------
 
   # ForwardedEvents exists but is disabled — enable on WEF collectors only
-  # windowseventlog/forwardedevents:
-  #   channel: ForwardedEvents
-  #   start_at: beginning
-  #   raw: true
+  windowseventlog/forwardedevents:
+    channel: ForwardedEvents
+    start_at: beginning
+    raw: true
+    ignore_channel_errors: true
 
   # DC-only channels — will silently no-op on non-DC machines due to ignore_channel_errors
   windowseventlog/dfs_replication:
@@ -166,6 +167,79 @@ processors:
     detectors: [ system, env ]
     system:
       hostname_sources: [ "os" ]
+  # WinEventLog://Application -> sourcetype=XmlWinEventLog  source=WinEventLog:Application
+  transform/application:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:Application")
+  # WinEventLog://Security -> sourcetype=XmlWinEventLog  source=WinEventLog:Security
+  transform/security:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:Security")
+  # WinEventLog://System -> sourcetype=XmlWinEventLog  source=WinEventLog:System
+  transform/system:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:System")
+  # WinEventLog://Microsoft-Windows-PrintService/Operational
+  # No renderXml in inputs.conf -> sourcetype=WinEventLog
+  transform/printservice:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "WinEventLog")
+          - set(attributes["com.splunk.source"], "WinEventLog:Microsoft-Windows-PrintService/Operational")
+  # transform/forwardedevents — uncomment if enabling ForwardedEvents receiver
+  transform/forwardedevents:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:ForwardedEvents")
+  transform/dfs_replication:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:DFS Replication")
+  transform/directory_service:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:Directory Service")
+  transform/file_replication:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:File Replication Service")
+  transform/dns_server:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:DNS Server")
+  transform/key_management:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:Key Management Service")
+  transform/defender:
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["com.splunk.sourcetype"], "XmlWinEventLog")
+          - set(attributes["com.splunk.source"], "XmlWinEventLog:Microsoft-Windows-Windows Defender/Operational")
+
 
 exporters:
   splunk_hec:
@@ -185,22 +259,71 @@ extensions:
 service:
   extensions: [file_storage/filelogs]
   pipelines:
-    logs:
-      receivers:
-        - windowseventlog
-        - windowseventlog/security
-        - windowseventlog/system
-        - windowseventlog/printservice
-        - windowseventlog/dfs_replication
-        - windowseventlog/directory_service
-        - windowseventlog/file_replication
-        - windowseventlog/dns_server
-        - windowseventlog/key_management
-        - windowseventlog/defender
-        - filelog/dhcp
-        - filelog/windowsupdate_legacy
-        - filelog/netlogon
-        - filelog/firewall
-        - filelog/dns_debug
+    logs/application:
+      receivers: [windowseventlog]
+      processors: [transform/application, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/security:
+      receivers: [windowseventlog/security]
+      processors: [transform/security, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/system:
+      receivers: [windowseventlog/system]
+      processors: [transform/system, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/printservice:
+      receivers: [windowseventlog/printservice]
+      processors: [transform/printservice, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/forwardedevents:
+      receivers: [windowseventlog/forwardedevents]
+      processors: [transform/forwardedevents, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/dfs_replication:
+      receivers: [windowseventlog/dfs_replication]
+      processors: [transform/dfs_replication, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/directory_service:
+      receivers: [windowseventlog/directory_service]
+      processors: [transform/directory_service, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/file_replication:
+      receivers: [windowseventlog/file_replication]
+      processors: [transform/file_replication, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/dns_server:
+      receivers: [windowseventlog/dns_server]
+      processors: [transform/dns_server, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/key_management:
+      receivers: [windowseventlog/key_management]
+      processors: [transform/key_management, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/defender:
+      receivers: [windowseventlog/defender]
+      processors: [transform/defender, batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/dhcp:
+      receivers: [filelog/dhcp]
+      processors: [batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/windowsupdate:
+      receivers: [filelog/windowsupdate_legacy, filelog/windowsupdate_modern]
+      processors: [batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/netlogon:
+      receivers: [filelog/netlogon]
+      processors: [batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/firewall:
+      receivers: [filelog/firewall]
+      processors: [batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/dns_analytical:
+      receivers: [filelog/dns_analytical]
+      processors: [batch, resourcedetection]
+      exporters: [splunk_hec]
+    logs/dns_debug:
+      receivers: [filelog/dns_debug]
       processors: [batch, resourcedetection]
       exporters: [splunk_hec]
