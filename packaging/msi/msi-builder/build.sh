@@ -25,6 +25,7 @@ MSI_SRC_DIR=${MSI_SRC_DIR:-"${REPO_DIR}/packaging/msi"}
 WXS_PATH="${MSI_SRC_DIR}/splunk-otel-collector.wxs"
 AGENT_CONFIG="${REPO_DIR}/cmd/otelcol/config/collector/agent_config.yaml"
 LOGS_CONFIG="${REPO_DIR}/cmd/otelcol/config/collector/logs_windows_config.yaml"
+METRICS_CONFIG="${REPO_DIR}/cmd/otelcol/config/collector/metrics_windows_config.yaml"
 GATEWAY_CONFIG="${REPO_DIR}/cmd/otelcol/config/collector/gateway_config.yaml"
 SUPPORT_BUNDLE_SCRIPT=${SUPPORT_BUNDLE_SCRIPT:-"${MSI_SRC_DIR}/splunk-support-bundle.ps1"}
 SPLUNK_ICON="${MSI_SRC_DIR}/splunk.ico"
@@ -64,6 +65,7 @@ parse_args_and_build() {
     local agent_config="$AGENT_CONFIG"
     local gateway_config="$GATEWAY_CONFIG"
     local logs_config="$LOGS_CONFIG"
+    local metrics_config="$METRICS_CONFIG"
     local support_bundle="$SUPPORT_BUNDLE_SCRIPT"
     local jmx_metric_gatherer_release="$JMX_METRIC_GATHERER_RELEASE"
     local splunk_icon="$SPLUNK_ICON"
@@ -162,6 +164,7 @@ parse_args_and_build() {
     cp "$support_bundle" "${files_dir}/splunk-support-bundle.ps1"
     cp "$agent_config" "${files_dir}/agent_config.yaml"
     cp "$logs_config" "${files_dir}/logs_windows_config.yaml"
+    cp "$metrics_config" "${files_dir}/metrics_windows_config.yaml"
     cp "$gateway_config" "${files_dir}/gateway_config.yaml"
 
     if [ -z "$skip_build_dir_removal" ]; then

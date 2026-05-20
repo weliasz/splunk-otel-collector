@@ -21,12 +21,12 @@
       <!-- Load the Splunk custom actions -->
       <Binary Id="SplunkCustomActionsDll" SourceFile="$(sys.SOURCEFILEDIR)/SplunkCustomActions/bin/Release/SplunkCustomActions.CA.dll" />
       <CustomAction Id="CheckLaunchConditions" DllEntry="CheckLaunchConditions" Execute="immediate" BinaryRef="SplunkCustomActionsDll" />
-      <CustomAction Id="AddOptionalConfigurationsCustomActionData" Property="AddOptionalConfigurations" Value="GODEBUG=[GODEBUG];GOMEMLIMIT=[GOMEMLIMIT];SPLUNK_COLLECTD_DIR=[SPLUNK_COLLECTD_DIR];SPLUNK_GATEWAY_URL=[SPLUNK_GATEWAY_URL];SPLUNK_LISTEN_INTERFACE=[SPLUNK_LISTEN_INTERFACE];SPLUNK_MEMORY_LIMIT_MIB=[SPLUNK_MEMORY_LIMIT_MIB];SPLUNK_MEMORY_TOTAL_MIB=[SPLUNK_MEMORY_TOTAL_MIB]" />
+      <CustomAction Id="AddOptionalConfigurationsCustomActionData" Property="AddOptionalConfigurations" Value="GODEBUG=[GODEBUG];GOMEMLIMIT=[GOMEMLIMIT];SPLUNK_COLLECTD_DIR=[SPLUNK_COLLECTD_DIR];SPLUNK_GATEWAY_URL=[SPLUNK_GATEWAY_URL];SPLUNK_LISTEN_INTERFACE=[SPLUNK_LISTEN_INTERFACE];SPLUNK_MEMORY_LIMIT_MIB=[SPLUNK_MEMORY_LIMIT_MIB];SPLUNK_MEMORY_TOTAL_MIB=[SPLUNK_MEMORY_TOTAL_MIB];SPLUNK_PLATFORM_LOGS_INDEX=[SPLUNK_PLATFORM_LOGS_INDEX];SPLUNK_PLATFORM_METRICS_INDEX=[SPLUNK_PLATFORM_METRICS_INDEX]" />
       <CustomAction Id="AddOptionalConfigurations" DllEntry="AddOptionalConfigurations" Execute="deferred" Impersonate="no" BinaryRef="SplunkCustomActionsDll" />
 
       <!-- Following name convention for this property to match upstream -->
       <!-- On upstream it is required and has a default value, here it is optional -->
-      <Property Id="COLLECTOR_SVC_ARGS" Secure="yes" />
+      <Property Id="COLLECTOR_SVC_ARGS" Value="--feature-gates=-confmap.enableMergeAppendOption" Secure="yes" />
 
       <!-- SPLUNK setup control properties -->
       <Property Id="SPLUNK_SETUP_COLLECTOR_MODE" Value="agent" Secure="yes" />
@@ -41,12 +41,22 @@
       <Property Id="SPLUNK_REALM" Value="us0" Secure="yes" />
 
       <Property Id="SPLUNK_CONFIG" Secure="yes" />
+      <Property Id="SPLUNK_CONFIGS_LIST" Secure="yes" />
       <Property Id="SPLUNK_API_URL" Secure="yes" />
       <Property Id="SPLUNK_INGEST_URL" Secure="yes" />
       <Property Id="SPLUNK_HEC_URL" Secure="yes" />
       <Property Id="SPLUNK_BUNDLE_DIR" Secure="yes" />
+      <Property Id="SPLUNK_PLATFORM_LOGS_INDEX" Secure="yes" />
+      <Property Id="SPLUNK_PLATFORM_METRICS_INDEX" Secure="yes" />
 
-      <CustomAction Id="Set_SPLUNK_CONFIG" Property="SPLUNK_CONFIG" Value="[CommonAppDataFolder]Splunk\OpenTelemetry Collector\[SPLUNK_SETUP_COLLECTOR_MODE]_config.yaml" />
+      <CustomAction Id="Set_SPLUNK_PLATFORM_LOGS_INDEX" Property="SPLUNK_PLATFORM_LOGS_INDEX" Value="[%SPLUNK_PLATFORM_LOGS_INDEX]" />
+      <CustomAction Id="Set_SPLUNK_PLATFORM_METRICS_INDEX" Property="SPLUNK_PLATFORM_METRICS_INDEX" Value="[%SPLUNK_PLATFORM_METRICS_INDEX]" />
+      <CustomAction Id="SetDefaultConfigTo_SPLUNK_CONFIGS_LIST" Property="SPLUNK_CONFIGS_LIST" Value="[CommonAppDataFolder]Splunk\OpenTelemetry Collector\[SPLUNK_SETUP_COLLECTOR_MODE]_config.yaml" />
+      <CustomAction Id="SetLogsConfigTo_SPLUNK_CONFIGS_LIST" Property="SPLUNK_CONFIGS_LIST" Value="[CommonAppDataFolder]Splunk\OpenTelemetry Collector\logs_windows_config.yaml" />
+      <CustomAction Id="SetMetricsConfigTo_SPLUNK_CONFIGS_LIST" Property="SPLUNK_CONFIGS_LIST" Value="[CommonAppDataFolder]Splunk\OpenTelemetry Collector\metrics_windows_config.yaml" />
+      <CustomAction Id="AppendLogsConfigTo_SPLUNK_CONFIGS_LIST" Property="SPLUNK_CONFIGS_LIST" Value="[SPLUNK_CONFIGS_LIST],[CommonAppDataFolder]Splunk\OpenTelemetry Collector\logs_windows_config.yaml" />
+      <CustomAction Id="AppendMetricsConfigTo_SPLUNK_CONFIGS_LIST" Property="SPLUNK_CONFIGS_LIST" Value="[SPLUNK_CONFIGS_LIST],[CommonAppDataFolder]Splunk\OpenTelemetry Collector\metrics_windows_config.yaml" />
+      <CustomAction Id="Set_SPLUNK_CONFIG" Property="SPLUNK_CONFIG" Value="[SPLUNK_CONFIGS_LIST]" />
       <CustomAction Id="Set_SPLUNK_API_URL" Property="SPLUNK_API_URL" Value="https://api.[SPLUNK_REALM].observability.splunkcloud.com" />
       <CustomAction Id="Set_SPLUNK_INGEST_URL" Property="SPLUNK_INGEST_URL" Value="https://ingest.[SPLUNK_REALM].observability.splunkcloud.com" />
       <CustomAction Id="Set_SPLUNK_HEC_URL" Property="SPLUNK_HEC_URL" Value="[SPLUNK_INGEST_URL]/v1/log" />
@@ -55,7 +65,14 @@
       <InstallExecuteSequence>
          <Custom Action="CheckLaunchConditions" After="LaunchConditions" />
          <Custom Action="Set_SPLUNK_HEC_TOKEN" After="LaunchConditions" Condition="NOT SPLUNK_HEC_TOKEN" />
-         <Custom Action="Set_SPLUNK_CONFIG" After="LaunchConditions" Condition="NOT SPLUNK_CONFIG" />
+         <Custom Action="Set_SPLUNK_PLATFORM_LOGS_INDEX" After="CheckLaunchConditions" Condition="NOT SPLUNK_PLATFORM_LOGS_INDEX AND %SPLUNK_PLATFORM_LOGS_INDEX" />
+         <Custom Action="Set_SPLUNK_PLATFORM_METRICS_INDEX" After="Set_SPLUNK_PLATFORM_LOGS_INDEX" Condition="NOT SPLUNK_PLATFORM_METRICS_INDEX AND %SPLUNK_PLATFORM_METRICS_INDEX" />
+         <Custom Action="SetDefaultConfigTo_SPLUNK_CONFIGS_LIST" After="Set_SPLUNK_PLATFORM_METRICS_INDEX" Condition="NOT SPLUNK_CONFIG AND SPLUNK_ACCESS_TOKEN" />
+         <Custom Action="AppendLogsConfigTo_SPLUNK_CONFIGS_LIST" After="SetDefaultConfigTo_SPLUNK_CONFIGS_LIST" Condition="NOT SPLUNK_CONFIG AND SPLUNK_CONFIGS_LIST AND SPLUNK_PLATFORM_LOGS_INDEX" />
+         <Custom Action="SetLogsConfigTo_SPLUNK_CONFIGS_LIST" After="AppendLogsConfigTo_SPLUNK_CONFIGS_LIST" Condition="NOT SPLUNK_CONFIG AND NOT SPLUNK_CONFIGS_LIST AND SPLUNK_PLATFORM_LOGS_INDEX" />
+         <Custom Action="AppendMetricsConfigTo_SPLUNK_CONFIGS_LIST" After="SetLogsConfigTo_SPLUNK_CONFIGS_LIST" Condition="NOT SPLUNK_CONFIG AND SPLUNK_CONFIGS_LIST AND SPLUNK_PLATFORM_METRICS_INDEX" />
+         <Custom Action="SetMetricsConfigTo_SPLUNK_CONFIGS_LIST" After="AppendMetricsConfigTo_SPLUNK_CONFIGS_LIST" Condition="NOT SPLUNK_CONFIG AND NOT SPLUNK_CONFIGS_LIST AND SPLUNK_PLATFORM_METRICS_INDEX" />
+         <Custom Action="Set_SPLUNK_CONFIG" After="SetMetricsConfigTo_SPLUNK_CONFIGS_LIST" Condition="NOT SPLUNK_CONFIG AND SPLUNK_CONFIGS_LIST" />
          <Custom Action="Set_SPLUNK_API_URL" After="LaunchConditions" Condition="NOT SPLUNK_API_URL" />
          <Custom Action="Set_SPLUNK_INGEST_URL" After="LaunchConditions" Condition="NOT SPLUNK_INGEST_URL" />
          <!-- The properties below depend on another properties and should be run only after all other properties are set -->
