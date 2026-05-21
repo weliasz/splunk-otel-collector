@@ -9,6 +9,7 @@ receivers:
     # Remove entries below if you want to collect those events despite the error.
     exclude_providers:
       - "Tenable Nessus Agent"
+      - "XENAGENT"
 
   windowseventlog/security:
     channel: Security
@@ -242,7 +243,7 @@ processors:
 
 
 exporters:
-  splunk_hec:
+  splunk_hec/logs:
     endpoint: "${SPLUNK_HEC_URL}"
     token: "${SPLUNK_HEC_TOKEN}"
     source: "otel"
@@ -263,68 +264,64 @@ service:
     logs/application:
       receivers: [windowseventlog]
       processors: [transform/application, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/security:
       receivers: [windowseventlog/security]
       processors: [transform/security, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/system:
       receivers: [windowseventlog/system]
       processors: [transform/system, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/printservice:
       receivers: [windowseventlog/printservice]
       processors: [transform/printservice, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/forwardedevents:
       receivers: [windowseventlog/forwardedevents]
       processors: [transform/forwardedevents, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/dfs_replication:
       receivers: [windowseventlog/dfs_replication]
       processors: [transform/dfs_replication, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/directory_service:
       receivers: [windowseventlog/directory_service]
       processors: [transform/directory_service, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/file_replication:
       receivers: [windowseventlog/file_replication]
       processors: [transform/file_replication, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/dns_server:
       receivers: [windowseventlog/dns_server]
       processors: [transform/dns_server, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/key_management:
       receivers: [windowseventlog/key_management]
       processors: [transform/key_management, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/defender:
       receivers: [windowseventlog/defender]
       processors: [transform/defender, batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/dhcp:
       receivers: [filelog/dhcp]
       processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/windowsupdate:
       receivers: [filelog/windowsupdate_legacy]
       processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/netlogon:
       receivers: [filelog/netlogon]
       processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/firewall:
       receivers: [filelog/firewall]
       processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
-    logs/dns_analytical:
-      receivers: [filelog/dns_analytical]
-      processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
     logs/dns_debug:
       receivers: [filelog/dns_debug]
       processors: [batch, resourcedetection]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec/logs]
