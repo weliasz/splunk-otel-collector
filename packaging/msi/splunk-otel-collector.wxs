@@ -101,6 +101,8 @@
                <MultiStringValue Value="SPLUNK_HEC_URL=[SPLUNK_HEC_URL]" />
                <MultiStringValue Value="SPLUNK_INGEST_URL=[SPLUNK_INGEST_URL]" />
                <MultiStringValue Value="SPLUNK_REALM=[SPLUNK_REALM]" />
+               <MultiStringValue Value="SPLUNK_PLATFORM_LOGS_INDEX=[SPLUNK_PLATFORM_LOGS_INDEX]" />
+               <MultiStringValue Value="SPLUNK_PLATFORM_METRICS_INDEX=[SPLUNK_PLATFORM_METRICS_INDEX]" />
             </RegistryValue>
          </RegistryKey>
       </Component>

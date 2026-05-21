@@ -262,6 +262,7 @@ exporters:
     token: "${SPLUNK_HEC_TOKEN}"
     source: "otel"
     sourcetype: "otel"
+    index: "${SPLUNK_PLATFORM_METRICS_INDEX}"
 
 service:
   extensions: [file_storage/filelogs]

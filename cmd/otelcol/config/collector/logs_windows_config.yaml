@@ -247,6 +247,7 @@ exporters:
     token: "${SPLUNK_HEC_TOKEN}"
     source: "otel"
     sourcetype: "otel"
+    index: "${SPLUNK_PLATFORM_LOGS_INDEX}"
 
 extensions:
   file_storage/filelogs:
@@ -308,7 +309,7 @@ service:
       processors: [batch, resourcedetection]
       exporters: [splunk_hec]
     logs/windowsupdate:
-      receivers: [filelog/windowsupdate_legacy, filelog/windowsupdate_modern]
+      receivers: [filelog/windowsupdate_legacy]
       processors: [batch, resourcedetection]
       exporters: [splunk_hec]
     logs/netlogon:
