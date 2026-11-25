@@ -21,6 +21,8 @@ type AgentPackage struct {
 	// AllowHTTPHosts lists exact URL hosts (including any port) that may use plain HTTP for package downloads.
 	// HTTPS and loopback HTTP are available without an entry.
 	AllowHTTPHosts []string `mapstructure:"allow_http_hosts"`
+	// AllowHTTP permits plain HTTP package downloads from any host.
+	AllowHTTP bool `mapstructure:"allow_http"`
 	// prevent unkeyed literal initialization
 	_ struct{}
 }

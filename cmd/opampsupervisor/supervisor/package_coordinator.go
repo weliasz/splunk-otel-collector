@@ -28,6 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor/supervisor/addon"
+	"github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor/supervisor/config"
 )
 
 const maxDownloadBytes int64 = 128 << 20
@@ -64,27 +65,27 @@ type packageCoordinator struct {
 	client         *http.Client
 	publish        func(*protobufs.PackageStatuses)
 	allowHTTPHosts []string
+	allowHTTP      bool
 }
 
-func newPackageCoordinator(logger *zap.Logger, storageDir string, top *packageManager, addons *addon.Manager, allowHTTPHosts []string, publish func(*protobufs.PackageStatuses)) (*packageCoordinator, error) {
+func newPackageCoordinator(logger *zap.Logger, storageDir string, top *packageManager, addons *addon.Manager, packageConfig config.AgentPackage, publish func(*protobufs.PackageStatuses)) (*packageCoordinator, error) {
 	root := filepath.Join(storageDir, "packages")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create package storage: %w", err)
 	}
 	c := &packageCoordinator{
-		logger: logger,
-		root:   root,
-		top:    top,
-		addons: addons,
-		ledger: packageLedger{Version: 1, Packages: map[string]*installedPackage{}},
-		client: &http.Client{
-			Timeout: 2 * time.Minute,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return errors.New("package download redirects are not allowed")
-			},
-		},
+		logger:         logger,
+		root:           root,
+		top:            top,
+		addons:         addons,
+		ledger:         packageLedger{Version: 1, Packages: map[string]*installedPackage{}},
 		publish:        publish,
-		allowHTTPHosts: allowHTTPHosts,
+		allowHTTPHosts: packageConfig.AllowHTTPHosts,
+		allowHTTP:      packageConfig.AllowHTTP,
+	}
+	c.client = &http.Client{
+		Timeout:       2 * time.Minute,
+		CheckRedirect: c.checkDownloadRedirect,
 	}
 	data, err := os.ReadFile(c.ledgerPath())
 	if err == nil {
@@ -635,11 +636,11 @@ func (c *packageCoordinator) download(ctx context.Context, name string, file *pr
 		return path, nil
 	}
 	u, err := url.Parse(file.GetDownloadUrl())
-	if err != nil || u.Host == "" {
+	if err != nil {
 		return "", errors.New("invalid package download URL")
 	}
-	if u.Scheme != "https" && (u.Scheme != "http" || !c.allowsHTTP(u)) {
-		return "", errors.New("package downloads require HTTPS unless the HTTP host is loopback or listed in agent.package.allow_http_hosts")
+	if err := c.validateDownloadURL(u); err != nil {
+		return "", err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
@@ -694,9 +695,43 @@ func (c *packageCoordinator) download(ctx context.Context, name string, file *pr
 	return path, nil
 }
 
+func (c *packageCoordinator) validateDownloadURL(u *url.URL) error {
+	if u.Hostname() == "" || u.User != nil {
+		return errors.New("package download URL must have a host and no embedded credentials")
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if c.allowsHTTP(u) {
+			return nil
+		}
+		return errors.New("package downloads require HTTPS unless the HTTP host is loopback, listed in agent.package.allow_http_hosts, or agent.package.allow_http is enabled")
+	default:
+		return errors.New("package downloads require an HTTP or HTTPS URL")
+	}
+}
+
+func (c *packageCoordinator) checkDownloadRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("too many package download redirects")
+	}
+	if err := c.validateDownloadURL(req.URL); err != nil {
+		return err
+	}
+	// Server-supplied download headers can contain credentials. Keep them on
+	// the original origin, and avoid leaking signed URLs in the Referer.
+	original := via[0].URL
+	if req.URL.Scheme != original.Scheme || !strings.EqualFold(req.URL.Host, original.Host) {
+		clear(req.Header)
+	}
+	req.Header.Del("Referer")
+	return nil
+}
+
 func (c *packageCoordinator) allowsHTTP(u *url.URL) bool {
 	host := u.Hostname()
-	if strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback() {
+	if c.allowHTTP || strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback() {
 		return true
 	}
 	return slices.ContainsFunc(c.allowHTTPHosts, func(allowed string) bool {

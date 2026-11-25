@@ -51,7 +51,7 @@ func newTestPackageCoordinator(t *testing.T, dir, binary string) (*packageCoordi
 	require.NoError(t, err)
 	manager, err := addon.NewManager(zap.NewNop(), fileaddon.NewFactory())
 	require.NoError(t, err)
-	coordinator, err := newPackageCoordinator(zap.NewNop(), dir, top, manager, nil, nil)
+	coordinator, err := newPackageCoordinator(zap.NewNop(), dir, top, manager, config.AgentPackage{}, nil)
 	require.NoError(t, err)
 	return coordinator, top
 }
@@ -95,6 +95,43 @@ func TestPackageDownloadAllowsConfiguredHTTPHost(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content, stored)
 	require.Equal(t, 1, requests)
+}
+
+func TestPackageDownloadValidatesRedirectTargets(t *testing.T) {
+	content := []byte("redirected artifact")
+	file := packageOffer(protobufs.PackageType_PackageType_Addon, "1", "https://packages.example.com/test.txt", content).File
+	file.Headers = &protobufs.Headers{Headers: []*protobufs.Header{{Key: "X-Download-Token", Value: "test-token"}}}
+	c := &packageCoordinator{root: t.TempDir()}
+	const target = "http://192.0.2.1:8000/test.txt"
+	requests := 0
+	c.client = &http.Client{
+		CheckRedirect: c.checkDownloadRedirect,
+		Transport: packageTestTransport(func(r *http.Request) (*http.Response, error) {
+			requests++
+			if r.URL.String() == file.DownloadUrl {
+				require.Equal(t, "test-token", r.Header.Get("X-Download-Token"))
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": {target}},
+					Body:       http.NoBody,
+				}, nil
+			}
+			require.Equal(t, target, r.URL.String())
+			require.Empty(t, r.Header.Get("X-Download-Token"))
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(content))}, nil
+		}),
+	}
+	_, err := c.download(t.Context(), "file:smoke", file)
+	require.ErrorContains(t, err, "agent.package.allow_http")
+	require.Equal(t, 1, requests)
+
+	c.allowHTTP = true
+	path, err := c.download(t.Context(), "file:smoke", file)
+	require.NoError(t, err)
+	stored, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, content, stored)
+	require.Equal(t, 3, requests)
 }
 
 func TestPackageCoordinatorMixedOfferAndRemoval(t *testing.T) {

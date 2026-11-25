@@ -115,7 +115,9 @@ generic `file` type. Distributions can register more types with
 The package file must supply a SHA-256 `content_hash`. Downloads use HTTPS by
 default, with HTTP allowed for loopback. To permit direct HTTP downloads from
 a specific lab file server, add its exact URL host and port (for example,
-`files.lab:8000`) to `agent.package.allow_http_hosts`. A top-level archive may be a
+`files.lab:8000`) to `agent.package.allow_http_hosts`. For a lab that needs
+HTTP from any host, set `agent.package.allow_http: true`. Redirect targets
+must meet the same download policy. A top-level archive may be a
 `.tgz`/`.tar.gz` archive or a raw executable. Configure
 `agent.package.agent_binary` for the executable's name inside an archive and
 `agent.package.verifier` for signature verification. The default verifier is
