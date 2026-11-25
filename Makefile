@@ -285,7 +285,7 @@ endif
 
 .PHONY: opampsupervisor
 opampsupervisor:
-	cd internal/tools && GO111MODULE=on CGO_ENABLED=$(CGO_ENABLED) go build -mod=readonly -trimpath -o "$(CURDIR)/bin/opampsupervisor_$(GOOS)_$(GOARCH)$(EXTENSION)" github.com/open-telemetry/opentelemetry-collector-contrib/cmd/opampsupervisor
+	cd cmd/opampsupervisor && GO111MODULE=on CGO_ENABLED=$(CGO_ENABLED) go build -mod=readonly -trimpath -o "$(CURDIR)/bin/opampsupervisor_$(GOOS)_$(GOARCH)$(EXTENSION)" .
 ifeq ($(OS), Windows_NT)
 	$(LINK_CMD) .\bin\opampsupervisor$(EXTENSION) .\bin\opampsupervisor_$(GOOS)_$(GOARCH)$(EXTENSION)
 else

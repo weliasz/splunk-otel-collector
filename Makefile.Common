@@ -148,7 +148,9 @@ fmt: addlicense misspell-correction
 	gofumpt -l -w -extra .
 	gofmt -w -s .
 	goimports -w  -local github.com/signalfx/splunk-otel-collector,github.com/signalfx/signalfx-agent ./
+ifneq ($(SKIP_FIELDALIGNMENT),true)
 	fieldalignment -fix ./... || true
+endif
 
 .PHONY: lint
 lint: checklicense misspell

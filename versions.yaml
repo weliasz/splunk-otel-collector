@@ -22,6 +22,7 @@ module-sets:
     modules:
       - github.com/signalfx/splunk-otel-collector
       - github.com/signalfx/splunk-otel-collector/baseline
+      - github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor
       - github.com/signalfx/splunk-otel-collector/pkg/extension/oracleencodingextension
       - github.com/signalfx/splunk-otel-collector/pkg/extension/smartagentextension
       - github.com/signalfx/splunk-otel-collector/pkg/receiver/smartagentreceiver

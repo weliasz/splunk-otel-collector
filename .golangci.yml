@@ -93,7 +93,25 @@ linters:
       - std-error-handling
 
     # Excluding configuration per-path, per-linter, per-text and per-source
-    rules: []
+    rules:
+      # The copied supervisor source is kept close to its upstream revision.
+      # These exclusions cover findings in that revision; new addon packages
+      # still receive the repository's normal lint checks.
+      - path: ^cmd/opampsupervisor/
+        linters: [govet]
+        text: '^fieldalignment:'
+      - path: ^cmd/opampsupervisor/supervisor/supervisor\.go$
+        linters: [contextcheck]
+      - path: ^cmd/opampsupervisor/supervisor/supervisor(_test)?\.go$
+        linters: [perfsprint]
+      - path: ^cmd/opampsupervisor/supervisor/supervisor(_test)?\.go$
+        linters: [gosec]
+        text: '^G115:'
+      - path: ^cmd/opampsupervisor/supervisor/commander/commander(_test)?\.go$
+        linters: [misspell]
+        text: cancelled
+      - path: ^cmd/opampsupervisor/supervisor/(supervisor_test|verifier/verifier_test)\.go$
+        linters: [testifylint]
 
   # all available settings of specific linters
   settings:
