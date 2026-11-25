@@ -112,8 +112,10 @@ selects a registered addon factory. The standalone command registers the
 generic `file` type. Distributions can register more types with
 `supervisor.WithAddonFactories`.
 
-The package file must supply a SHA-256 `content_hash`. Downloads use HTTPS;
-HTTP is accepted only for loopback test servers. A top-level archive may be a
+The package file must supply a SHA-256 `content_hash`. Downloads use HTTPS by
+default, with HTTP allowed for loopback. To permit direct HTTP downloads from
+a specific lab file server, add its exact URL host and port (for example,
+`files.lab:8000`) to `agent.package.allow_http_hosts`. A top-level archive may be a
 `.tgz`/`.tar.gz` archive or a raw executable. Configure
 `agent.package.agent_binary` for the executable's name inside an archive and
 `agent.package.verifier` for signature verification. The default verifier is

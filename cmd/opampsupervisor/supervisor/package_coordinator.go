@@ -54,18 +54,19 @@ type packageGenerationJournal struct {
 // wait for addon configuration or preserve a failed removal in its inventory,
 // so OnMessage reconciles the offer here and publishes the resulting snapshot.
 type packageCoordinator struct {
-	mu         sync.Mutex
-	logger     *zap.Logger
-	root       string
-	top        *packageManager
-	addons     *addon.Manager
-	ledger     packageLedger
-	generation *packageGenerationJournal
-	client     *http.Client
-	publish    func(*protobufs.PackageStatuses)
+	mu             sync.Mutex
+	logger         *zap.Logger
+	root           string
+	top            *packageManager
+	addons         *addon.Manager
+	ledger         packageLedger
+	generation     *packageGenerationJournal
+	client         *http.Client
+	publish        func(*protobufs.PackageStatuses)
+	allowHTTPHosts []string
 }
 
-func newPackageCoordinator(logger *zap.Logger, storageDir string, top *packageManager, addons *addon.Manager, publish func(*protobufs.PackageStatuses)) (*packageCoordinator, error) {
+func newPackageCoordinator(logger *zap.Logger, storageDir string, top *packageManager, addons *addon.Manager, allowHTTPHosts []string, publish func(*protobufs.PackageStatuses)) (*packageCoordinator, error) {
 	root := filepath.Join(storageDir, "packages")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create package storage: %w", err)
@@ -82,7 +83,8 @@ func newPackageCoordinator(logger *zap.Logger, storageDir string, top *packageMa
 				return errors.New("package download redirects are not allowed")
 			},
 		},
-		publish: publish,
+		publish:        publish,
+		allowHTTPHosts: allowHTTPHosts,
 	}
 	data, err := os.ReadFile(c.ledgerPath())
 	if err == nil {
@@ -636,8 +638,8 @@ func (c *packageCoordinator) download(ctx context.Context, name string, file *pr
 	if err != nil || u.Host == "" {
 		return "", errors.New("invalid package download URL")
 	}
-	if u.Scheme != "https" && (u.Scheme != "http" || !isLoopbackHost(u.Hostname())) {
-		return "", errors.New("package downloads require HTTPS (HTTP is allowed only on loopback)")
+	if u.Scheme != "https" && (u.Scheme != "http" || !c.allowsHTTP(u)) {
+		return "", errors.New("package downloads require HTTPS unless the HTTP host is loopback or listed in agent.package.allow_http_hosts")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
@@ -692,8 +694,14 @@ func (c *packageCoordinator) download(ctx context.Context, name string, file *pr
 	return path, nil
 }
 
-func isLoopbackHost(host string) bool {
-	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback()
+func (c *packageCoordinator) allowsHTTP(u *url.URL) bool {
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback() {
+		return true
+	}
+	return slices.ContainsFunc(c.allowHTTPHosts, func(allowed string) bool {
+		return strings.EqualFold(allowed, u.Host)
+	})
 }
 
 func validPackageHeader(key, value string) bool {

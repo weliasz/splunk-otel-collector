@@ -18,6 +18,9 @@ type AgentPackage struct {
 	AgentBinary string `mapstructure:"agent_binary"`
 	// Verifier configures how downloaded packages are verified.
 	Verifier Verifier `mapstructure:"verifier"`
+	// AllowHTTPHosts lists exact URL hosts (including any port) that may use plain HTTP for package downloads.
+	// HTTPS and loopback HTTP are available without an entry.
+	AllowHTTPHosts []string `mapstructure:"allow_http_hosts"`
 	// prevent unkeyed literal initialization
 	_ struct{}
 }

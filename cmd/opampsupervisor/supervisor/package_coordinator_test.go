@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -50,7 +51,7 @@ func newTestPackageCoordinator(t *testing.T, dir, binary string) (*packageCoordi
 	require.NoError(t, err)
 	manager, err := addon.NewManager(zap.NewNop(), fileaddon.NewFactory())
 	require.NoError(t, err)
-	coordinator, err := newPackageCoordinator(zap.NewNop(), dir, top, manager, nil)
+	coordinator, err := newPackageCoordinator(zap.NewNop(), dir, top, manager, nil, nil)
 	require.NoError(t, err)
 	return coordinator, top
 }
@@ -61,6 +62,39 @@ func packageOffer(typ protobufs.PackageType, version, url string, data []byte) *
 		Type: typ, Version: version, Hash: []byte("identity:" + version),
 		File: &protobufs.DownloadableFile{DownloadUrl: url, ContentHash: sum[:]},
 	}
+}
+
+type packageTestTransport func(*http.Request) (*http.Response, error)
+
+func (f packageTestTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func TestPackageDownloadAllowsConfiguredHTTPHost(t *testing.T) {
+	content := []byte("artifact")
+	file := packageOffer(protobufs.PackageType_PackageType_Addon, "1", "http://192.0.2.1:8000/test.txt", content).File
+	c := &packageCoordinator{root: t.TempDir()}
+	requests := 0
+	c.client = &http.Client{Transport: packageTestTransport(func(r *http.Request) (*http.Response, error) {
+		requests++
+		require.Equal(t, file.DownloadUrl, r.URL.String())
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(content))}, nil
+	})}
+
+	_, err := c.download(t.Context(), "file:smoke", file)
+	require.ErrorContains(t, err, "allow_http_hosts")
+	c.allowHTTPHosts = []string{"192.0.2.1:9000"}
+	_, err = c.download(t.Context(), "file:smoke", file)
+	require.ErrorContains(t, err, "allow_http_hosts")
+	require.Zero(t, requests)
+
+	c.allowHTTPHosts = []string{"192.0.2.1:8000"}
+	path, err := c.download(t.Context(), "file:smoke", file)
+	require.NoError(t, err)
+	stored, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, content, stored)
+	require.Equal(t, 1, requests)
 }
 
 func TestPackageCoordinatorMixedOfferAndRemoval(t *testing.T) {

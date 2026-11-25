@@ -422,7 +422,7 @@ func (s *Supervisor) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		s.packageOffers, err = newPackageCoordinator(s.telemetrySettings.Logger, s.config.Storage.Directory, s.packages, s.addons, func(statuses *protobufs.PackageStatuses) {
+		s.packageOffers, err = newPackageCoordinator(s.telemetrySettings.Logger, s.config.Storage.Directory, s.packages, s.addons, s.config.Agent.Package.AllowHTTPHosts, func(statuses *protobufs.PackageStatuses) {
 			if s.opampClient != nil {
 				if publishErr := s.opampClient.SetPackageStatuses(statuses); publishErr != nil {
 					s.telemetrySettings.Logger.Error("Could not report package statuses", zap.Error(publishErr))
