@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/zap"
+
+	"github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor/supervisor/config"
 )
 
 type binarySwitchState struct {
@@ -159,8 +162,18 @@ func (s *Supervisor) installAgentBinary(ctx context.Context, stagedPath string) 
 	if !ok || state.configMapIsEmpty {
 		return errors.New("collector configuration is required to verify a binary update")
 	}
-	if err := s.writeAgentConfig(); err != nil {
-		return fmt.Errorf("write Collector configuration before binary update: %w", err)
+	if err := func() error {
+		s.configWriteMu.Lock()
+		defer s.configWriteMu.Unlock()
+		if err := s.removePreviousCollectorIdentity(); err != nil {
+			return fmt.Errorf("remove previous Collector identity: %w", err)
+		}
+		if err := s.writeAgentConfig(); err != nil {
+			return fmt.Errorf("write Collector configuration before binary update: %w", err)
+		}
+		return nil
+	}(); err != nil {
+		return err
 	}
 	active, backup := s.managedBinaryPath(), s.binaryBackupPath()
 	info, err := os.Stat(stagedPath)
@@ -221,6 +234,59 @@ func (s *Supervisor) installAgentBinary(ctx context.Context, stagedPath string) 
 		_ = os.Remove(s.binarySwitchPath())
 		return fmt.Errorf("new Collector failed startup: %w", startErr)
 	}
+	return nil
+}
+
+// removePreviousCollectorIdentity prevents a replacement binary from
+// inheriting service.name and service.version through the previous process's
+// AgentDescription-derived telemetry resource. The replacement reports its
+// own identity after it starts.
+func (s *Supervisor) removePreviousCollectorIdentity() error {
+	state, ok := s.cfgState.Load().(*configState)
+	if !ok {
+		return errors.New("collector configuration is not available")
+	}
+
+	conf, err := config.NewConfFromYAML([]byte(state.mergedConfig))
+	if err != nil {
+		return err
+	}
+
+	const attributesPath = "service::telemetry::resource::attributes"
+	if attributes, attributesOK := conf.Get(attributesPath).([]any); attributesOK {
+		filtered := make([]any, 0, len(attributes))
+		for _, attribute := range attributes {
+			value, valueOK := attribute.(map[string]any)
+			name, nameOK := value["name"].(string)
+			if valueOK && nameOK && (name == "service.name" || name == "service.version") {
+				continue
+			}
+			filtered = append(filtered, attribute)
+		}
+		conf.Delete(attributesPath)
+		if len(filtered) > 0 {
+			if err := conf.Merge(confmap.NewFromStringMap(map[string]any{
+				"service": map[string]any{
+					"telemetry": map[string]any{
+						"resource": map[string]any{"attributes": filtered},
+					},
+				},
+			})); err != nil {
+				return err
+			}
+		}
+	}
+	conf.Delete("service::telemetry::resource::service.name")
+	conf.Delete("service::telemetry::resource::service.version")
+
+	merged, err := config.MarshalConfToYAML(conf)
+	if err != nil {
+		return err
+	}
+	s.cfgState.Store(&configState{
+		mergedConfig:     string(merged),
+		configMapIsEmpty: state.configMapIsEmpty,
+	})
 	return nil
 }
 

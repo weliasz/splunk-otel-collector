@@ -19,7 +19,10 @@ import (
 	"time"
 
 	"github.com/open-telemetry/opamp-go/protobufs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor/supervisor/addon"
@@ -260,6 +263,67 @@ func TestManagedBinaryRecoversInterruptedSwitch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "new", string(actual))
 	require.NoFileExists(t, s.binaryBackupPath())
+}
+
+func TestRemovePreviousCollectorIdentity(t *testing.T) {
+	tests := map[string]string{
+		"declarative attributes": `
+service:
+  telemetry:
+    resource:
+      attributes:
+        - name: service.name
+          value: otelcol
+        - name: service.version
+          value: v0.165.1
+        - name: service.instance.id
+          value: instance-id
+        - name: deployment.environment
+          value: test
+`,
+		"legacy attributes": `
+service:
+  telemetry:
+    resource:
+      service.name: otelcol
+      service.version: v0.165.1
+      service.instance.id: instance-id
+      deployment.environment: test
+`,
+	}
+
+	for name, mergedConfig := range tests {
+		t.Run(name, func(t *testing.T) {
+			s := &Supervisor{cfgState: &atomic.Value{}}
+			s.cfgState.Store(&configState{mergedConfig: mergedConfig, configMapIsEmpty: true})
+
+			require.NoError(t, s.removePreviousCollectorIdentity())
+
+			state := s.cfgState.Load().(*configState)
+			require.True(t, state.configMapIsEmpty)
+			conf, err := config.NewConfFromYAML([]byte(state.mergedConfig))
+			require.NoError(t, err)
+			assert.False(t, conf.IsSet("service::telemetry::resource::service.name"))
+			assert.False(t, conf.IsSet("service::telemetry::resource::service.version"))
+
+			resource, ok := conf.Get("service::telemetry::resource").(map[string]any)
+			require.True(t, ok)
+			var resourceCfg otelconftelemetry.ResourceConfig
+			require.NoError(t, confmap.NewFromStringMap(resource).Unmarshal(&resourceCfg))
+
+			attributeValues := make(map[string]any, len(resourceCfg.Attributes)+len(resourceCfg.LegacyAttributes))
+			for _, attribute := range resourceCfg.Attributes {
+				attributeValues[attribute.Name] = attribute.Value
+			}
+			for attribute, value := range resourceCfg.LegacyAttributes {
+				attributeValues[attribute] = value
+			}
+			assert.NotContains(t, attributeValues, "service.name")
+			assert.NotContains(t, attributeValues, "service.version")
+			assert.Equal(t, "instance-id", attributeValues["service.instance.id"])
+			assert.Equal(t, "test", attributeValues["deployment.environment"])
+		})
+	}
 }
 
 func TestManagedBinaryRollsBackWhenNewProcessIsNotReady(t *testing.T) {
