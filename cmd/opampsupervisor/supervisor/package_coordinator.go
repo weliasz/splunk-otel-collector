@@ -31,8 +31,6 @@ import (
 	"github.com/signalfx/splunk-otel-collector/cmd/opampsupervisor/supervisor/config"
 )
 
-const maxDownloadBytes int64 = 128 << 20
-
 type installedPackage struct {
 	Type        protobufs.PackageType `json:"type"`
 	Hash        []byte                `json:"hash"`
@@ -670,12 +668,9 @@ func (c *packageCoordinator) download(ctx context.Context, name string, file *pr
 	defer os.Remove(temp.Name())
 	defer temp.Close()
 	hasher := sha256.New()
-	n, err := io.Copy(io.MultiWriter(temp, hasher), io.LimitReader(resp.Body, maxDownloadBytes+1))
+	_, err = io.Copy(io.MultiWriter(temp, hasher), resp.Body)
 	if err != nil {
 		return "", err
-	}
-	if n > maxDownloadBytes {
-		return "", fmt.Errorf("package exceeds maximum download size of %d bytes", maxDownloadBytes)
 	}
 	if !bytes.Equal(hasher.Sum(nil), file.ContentHash) {
 		return "", errors.New("downloaded package SHA-256 does not match content_hash")
